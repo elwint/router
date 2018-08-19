@@ -20,8 +20,8 @@ type GetHandle func(*Context) error
 
 // Router is the router itself
 type Router struct {
-	routes []route
-	Port   int
+	routes   []route
+	Renderer Renderer
 }
 
 // New returns a new Router
@@ -83,11 +83,11 @@ func (r *Router) getHttpr() *httprouter.Router {
 
 	for _, v := range r.routes {
 		if handle, ok := v.Handle.(GetHandle); ok {
-			httpr.Handle(v.Method, v.Path, handleGET(handle))
+			httpr.Handle(v.Method, v.Path, handleGET(r, handle))
 			continue
 		}
 
-		httpr.Handle(v.Method, v.Path, handlePOST(v.Handle))
+		httpr.Handle(v.Method, v.Path, handlePOST(r, v.Handle))
 	}
 
 	return httpr
@@ -119,11 +119,11 @@ func checkInterfaceHandle(f interface{}) {
 	return
 }
 
-func handlePOST(f interface{}) httprouter.Handle {
+func handlePOST(r *Router, f interface{}) httprouter.Handle {
 	funcRv, inputRt := reflect.ValueOf(f), reflect.TypeOf(f).In(1)
 
 	return func(res http.ResponseWriter, req *http.Request, param httprouter.Params) {
-		c := newContext(res, req, param)
+		c := newContext(r, res, req, param)
 
 		data := reflect.New(inputRt)
 		{
@@ -141,9 +141,9 @@ func handlePOST(f interface{}) httprouter.Handle {
 	}
 }
 
-func handleGET(f GetHandle) httprouter.Handle {
+func handleGET(r *Router, f GetHandle) httprouter.Handle {
 	return func(res http.ResponseWriter, req *http.Request, param httprouter.Params) {
-		c := newContext(res, req, param)
+		c := newContext(r, res, req, param)
 
 		err := f(c)
 

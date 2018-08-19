@@ -9,14 +9,15 @@ import (
 
 // Context is passed to handlers and middlewares
 type Context struct {
+	router   *Router
 	Request  *http.Request
 	Response http.ResponseWriter
 	Param    func(string) string
 	store    map[string]interface{}
 }
 
-func newContext(res http.ResponseWriter, req *http.Request, param httprouter.Params) *Context {
-	return &Context{req, res, param.ByName, make(map[string]interface{})}
+func newContext(router *Router, res http.ResponseWriter, req *http.Request, param httprouter.Params) *Context {
+	return &Context{router, req, res, param.ByName, make(map[string]interface{})}
 }
 
 // String returns the given status code and writes the bytes to the body
@@ -43,6 +44,15 @@ func (c *Context) NoContent(code int) error {
 func (c *Context) JSON(code int, data interface{}) error {
 	c.Response.WriteHeader(code)
 	return json.NewEncoder(c.Response).Encode(data) // TODO: Encode to buffer first to prevent partial responses on error
+}
+
+func (c *Context) Render(code int, template string, data interface{}) error {
+	if c.router.Renderer == nil {
+		panic(`Cannot call render without a renderer set`)
+	}
+
+	c.Response.WriteHeader(code)
+	return c.router.Renderer.Render(c.Response, template, data, c)
 }
 
 // Set sets a value in the context. Set is not safe to be used concurrently
