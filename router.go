@@ -29,6 +29,10 @@ func New() *Router {
 	return &Router{}
 }
 
+func (r *Router) Group(prefix string) *Group {
+	return &Group{prefix: prefix, router: r}
+}
+
 // GET adds a GET route
 func (r *Router) GET(path string, handle GetHandle) {
 	r.routes = append(r.routes, route{`GET`, path, handle})
