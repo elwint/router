@@ -1,7 +1,6 @@
 package router
 
 import (
-	"encoding/json"
 	"net/http"
 	"reflect"
 
@@ -24,9 +23,13 @@ type ErrorHandle func(*Context, interface{})
 // Middleware TODO:
 type Middleware func(Handle) Handle
 
+// Binder reads input to dst, returns true is successful
+type Reader func(c *Context, dst interface{}) bool
+
 // Router is the router itself
 type Router struct {
 	routes                  []route
+	Reader                  Reader
 	Renderer                Renderer
 	middleware              []Middleware
 	NotFoundHandler         Handle
@@ -36,7 +39,7 @@ type Router struct {
 
 // New returns a new Router
 func New() *Router {
-	return &Router{NotFoundHandler: defaultNotFoundHandler, MethodNotAllowedHandler: defaultMethodNotAllowedHandler, ErrorHandler: defaultErrorHandler}
+	return &Router{Reader: defaultReader, NotFoundHandler: defaultNotFoundHandler, MethodNotAllowedHandler: defaultMethodNotAllowedHandler, ErrorHandler: defaultErrorHandler}
 }
 
 // Use adds a global middleware
@@ -161,12 +164,11 @@ func handlePOST(r *Router, f interface{}) Handle {
 	return func(c *Context) error {
 		data := reflect.New(inputRt)
 
-		err := json.NewDecoder(c.Request.Body).Decode(data.Interface())
-		c.Request.Body.Close()
-		if err != nil {
-			c.NoContent(400) // TODO: send info about error (BindError)
+		if !r.Reader(c, data.Interface()) {
+			c.Request.Body.Close()
 			return nil
 		}
+		c.Request.Body.Close()
 
 		out := funcRv.Call([]reflect.Value{reflect.ValueOf(c), data.Elem()})
 
