@@ -2,7 +2,6 @@ package router
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"reflect"
 
@@ -10,65 +9,82 @@ import (
 )
 
 type route struct {
-	Method string
-	Path   string
-	Handle interface{}
+	Method     string
+	Path       string
+	Handle     interface{}
+	Middleware []Middleware
 }
 
-// GetHandle handles a request that doesn't receive a body
-type GetHandle func(*Context) error
+// Handle handles a request
+type Handle func(*Context) error
+
+// ErrorHandle handles a request
+type ErrorHandle func(*Context, interface{})
+
+// Middleware TODO:
+type Middleware func(Handle) Handle
 
 // Router is the router itself
 type Router struct {
-	routes   []route
-	Renderer Renderer
+	routes                  []route
+	Renderer                Renderer
+	middleware              []Middleware
+	NotFoundHandler         Handle
+	MethodNotAllowedHandler Handle
+	ErrorHandler            ErrorHandle
 }
 
 // New returns a new Router
 func New() *Router {
-	return &Router{}
+	return &Router{NotFoundHandler: defaultNotFoundHandler, MethodNotAllowedHandler: defaultMethodNotAllowedHandler, ErrorHandler: defaultErrorHandler}
 }
 
-func (r *Router) Group(prefix string) *Group {
-	return &Group{prefix: prefix, router: r}
+// Use adds a global middleware
+func (r *Router) Use(m ...Middleware) {
+	r.middleware = append(r.middleware, m...)
+}
+
+// Group creates a new router group with a shared prefix and set of middlewares
+func (r *Router) Group(prefix string, middleware ...Middleware) *Group {
+	return &Group{prefix: prefix, router: r, middleware: middleware}
 }
 
 // GET adds a GET route
-func (r *Router) GET(path string, handle GetHandle) {
-	r.routes = append(r.routes, route{`GET`, path, handle})
+func (r *Router) GET(path string, handle Handle, middleware ...Middleware) {
+	r.routes = append(r.routes, route{`GET`, path, handle, middleware})
 }
 
 // POST adds a POST route
-func (r *Router) POST(path string, handle interface{}) {
+func (r *Router) POST(path string, handle interface{}, middleware ...Middleware) {
 	checkInterfaceHandle(handle)
-	r.routes = append(r.routes, route{`POST`, path, handle})
+	r.routes = append(r.routes, route{`POST`, path, handle, middleware})
 }
 
 // DELETE adds a DELETE route
-func (r *Router) DELETE(path string, handle GetHandle) {
-	r.routes = append(r.routes, route{`DELETE`, path, handle})
+func (r *Router) DELETE(path string, handle Handle, middleware ...Middleware) {
+	r.routes = append(r.routes, route{`DELETE`, path, handle, middleware})
 }
 
 // PUT adds a PUT route
-func (r *Router) PUT(path string, handle interface{}) {
+func (r *Router) PUT(path string, handle interface{}, middleware ...Middleware) {
 	checkInterfaceHandle(handle)
-	r.routes = append(r.routes, route{`PUT`, path, handle})
+	r.routes = append(r.routes, route{`PUT`, path, handle, middleware})
 }
 
 // PATCH adds a PATCH route
-func (r *Router) PATCH(path string, handle interface{}) {
+func (r *Router) PATCH(path string, handle interface{}, middleware ...Middleware) {
 	checkInterfaceHandle(handle)
-	r.routes = append(r.routes, route{`PATCH`, path, handle})
+	r.routes = append(r.routes, route{`PATCH`, path, handle, middleware})
 }
 
 // HEAD adds a HEAD route
-func (r *Router) HEAD(path string, handle GetHandle) {
-	r.routes = append(r.routes, route{`HEAD`, path, handle})
+func (r *Router) HEAD(path string, handle Handle, middleware ...Middleware) {
+	r.routes = append(r.routes, route{`HEAD`, path, handle, middleware})
 }
 
 // OPTIONS adds a OPTIONS route
-func (r *Router) OPTIONS(path string, handle GetHandle) {
-	r.routes = append(r.routes, route{`OPTIONS`, path, handle})
+func (r *Router) OPTIONS(path string, handle Handle, middleware ...Middleware) {
+	r.routes = append(r.routes, route{`OPTIONS`, path, handle, middleware})
 }
 
 // Start starts the web server and binds to the given address
@@ -82,19 +98,39 @@ func (r *Router) getHttpr() *httprouter.Router {
 	httpr := httprouter.New()
 
 	for _, v := range r.routes {
-		if handle, ok := v.Handle.(GetHandle); ok {
-			httpr.Handle(v.Method, v.Path, handleGET(r, handle))
-			continue
+		handle, ok := v.Handle.(Handle)
+		if !ok {
+			handle = handlePOST(r, v.Handle)
 		}
 
-		httpr.Handle(v.Method, v.Path, handlePOST(r, v.Handle))
+		httpr.Handle(v.Method, v.Path, handleReq(r, handle, append(r.middleware, v.Middleware...)))
+	}
+
+	httpr.NotFound = http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		handleReq(r, r.NotFoundHandler, r.middleware)(res, req, nil)
+	})
+
+	httpr.MethodNotAllowed = http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		handleReq(r, r.MethodNotAllowedHandler, r.middleware)(res, req, nil)
+	})
+
+	httpr.PanicHandler = func(res http.ResponseWriter, req *http.Request, err interface{}) {
+		c := newContext(r, res, req, nil)
+		r.ErrorHandler(c, err)
 	}
 
 	return httpr
 }
 
+func handleErr(errHandler ErrorHandle, err interface{}) Handle {
+	return func(c *Context) error {
+		errHandler(c, err)
+		return nil
+	}
+}
+
 func checkInterfaceHandle(f interface{}) {
-	if _, ok := f.(GetHandle); ok {
+	if _, ok := f.(Handle); ok {
 		return
 	}
 
@@ -119,34 +155,41 @@ func checkInterfaceHandle(f interface{}) {
 	return
 }
 
-func handlePOST(r *Router, f interface{}) httprouter.Handle {
+func handlePOST(r *Router, f interface{}) Handle {
 	funcRv, inputRt := reflect.ValueOf(f), reflect.TypeOf(f).In(1)
 
-	return func(res http.ResponseWriter, req *http.Request, param httprouter.Params) {
-		c := newContext(r, res, req, param)
-
+	return func(c *Context) error {
 		data := reflect.New(inputRt)
-		{
-			err := json.NewDecoder(req.Body).Decode(data.Interface())
-			req.Body.Close()
-			if err != nil {
-				c.NoContent(400) // TODO: send info about error (BindError)
-				return
-			}
+
+		err := json.NewDecoder(c.Request.Body).Decode(data.Interface())
+		c.Request.Body.Close()
+		if err != nil {
+			c.NoContent(400) // TODO: send info about error (BindError)
+			return nil
 		}
 
 		out := funcRv.Call([]reflect.Value{reflect.ValueOf(c), data.Elem()})
-		err := out[0].Interface()
-		_ = err
+
+		if out[0].IsNil() {
+			return nil
+		}
+		return out[0].Interface().(error)
 	}
 }
 
-func handleGET(r *Router, f GetHandle) httprouter.Handle {
+func handleReq(r *Router, handle Handle, m []Middleware) httprouter.Handle {
 	return func(res http.ResponseWriter, req *http.Request, param httprouter.Params) {
 		c := newContext(r, res, req, param)
 
+		f := handle
+		for i := len(m) - 1; i >= 0; i-- { // TODO: 1,2,3 of 3,2,1
+			f = m[i](f)
+		}
+
 		err := f(c)
 
-		fmt.Println(err)
+		if err != nil {
+			r.ErrorHandler(c, err)
+		}
 	}
 }
