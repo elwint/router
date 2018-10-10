@@ -29,6 +29,7 @@ func (c *Context) Bytes(code int, b []byte) error {
 
 // String returns the given status code and writes the string to the body
 func (c *Context) String(code int, s string) error {
+	c.Response.Header().Set(`Content-Type`, `text/plain`)
 	c.Response.WriteHeader(code)
 	_, err := c.Response.Write([]byte(s))
 	return err
@@ -42,6 +43,7 @@ func (c *Context) NoContent(code int) error {
 
 // JSON returns the given status code and writes JSON to the body
 func (c *Context) JSON(code int, data interface{}) error {
+	c.Response.Header().Set(`Content-Type`, `application/json`)
 	c.Response.WriteHeader(code)
 	return json.NewEncoder(c.Response).Encode(data) // TODO: Encode to buffer first to prevent partial responses on error
 }
@@ -51,6 +53,7 @@ func (c *Context) Render(code int, template string, data interface{}) error {
 		panic(`Cannot call render without a renderer set`)
 	}
 
+	c.Response.Header().Set(`Content-Type`, `text/html`)
 	c.Response.WriteHeader(code)
 	return c.router.Renderer.Render(c.Response, template, data, c)
 }
