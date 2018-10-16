@@ -15,7 +15,7 @@ type route struct {
 }
 
 // Handle handles a request
-type Handle func(*Context) error
+type Handle = func(*Context) error
 
 // ErrorHandle handles a request
 type ErrorHandle func(*Context, interface{})
