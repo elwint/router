@@ -97,6 +97,13 @@ func (r *Router) Start(addr string) error {
 	return http.ListenAndServe(addr, httpr)
 }
 
+// StartTLS starts the web server over TLS and binds to the given address
+func (r *Router) StartTLS(addr, certFile, keyFile string) error {
+	httpr := r.getHttpr()
+
+	return http.ListenAndServeTLS(addr, certFile, keyFile, httpr)
+}
+
 func (r *Router) getHttpr() *httprouter.Router {
 	httpr := httprouter.New()
 
