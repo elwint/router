@@ -24,7 +24,7 @@ type ErrorHandle func(*Context, interface{})
 type Middleware func(Handle) Handle
 
 // Binder reads input to dst, returns true is successful
-type Reader func(c *Context, dst interface{}) bool
+type Reader func(c *Context, dst interface{}) (bool, error)
 
 // Router is the router itself
 type Router struct {
@@ -164,11 +164,16 @@ func handlePOST(r *Router, f interface{}) Handle {
 	return func(c *Context) error {
 		data := reflect.New(inputRt)
 
-		if !r.Reader(c, data.Interface()) {
+		if r.Reader != nil {
+			ok, err := r.Reader(c, data.Interface())
 			c.Request.Body.Close()
-			return nil
+			if err != nil {
+				return err
+			}
+			if !ok {
+				return nil
+			}
 		}
-		c.Request.Body.Close()
 
 		out := funcRv.Call([]reflect.Value{reflect.ValueOf(c), data.Elem()})
 

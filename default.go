@@ -17,12 +17,11 @@ func defaultErrorHandler(c *Context, err interface{}) {
 	_ = c.StatusText(http.StatusInternalServerError)
 }
 
-func defaultReader(c *Context, dst interface{}) bool {
+func defaultReader(c *Context, dst interface{}) (bool, error) {
 	err := json.NewDecoder(c.Request.Body).Decode(dst)
 	if err != nil {
-		c.NoContent(400)
-		return false
+		return false, c.StatusText(http.StatusBadRequest)
 	}
 
-	return true
+	return true, nil
 }
