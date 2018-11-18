@@ -20,7 +20,7 @@ type Handle = func(*Context) error
 // ErrorHandle handles a request
 type ErrorHandle func(*Context, interface{})
 
-// Middleware TODO:
+// Middleware is a function that runs before your route, it gets the next handler as a parameter
 type Middleware func(Handle) Handle
 
 // Binder reads input to dst, returns true is successful
