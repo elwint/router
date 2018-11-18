@@ -2,20 +2,19 @@ package router
 
 import (
 	"encoding/json"
-	"fmt"
+	"net/http"
 )
 
 func defaultNotFoundHandler(c *Context) error {
-	return c.String(404, `not found`)
+	return c.StatusText(http.StatusNotFound)
 }
 
 func defaultMethodNotAllowedHandler(c *Context) error {
-	return c.String(504, `method not allowed`)
+	return c.StatusText(http.StatusMethodNotAllowed)
 }
 
 func defaultErrorHandler(c *Context, err interface{}) {
-	fmt.Println(err)
-	c.String(500, `internal server error`)
+	_ = c.StatusText(http.StatusInternalServerError)
 }
 
 func defaultReader(c *Context, dst interface{}) bool {

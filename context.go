@@ -35,6 +35,11 @@ func (c *Context) String(code int, s string) error {
 	return err
 }
 
+// StatusText returns the given status code with the matching status text
+func (c *Context) StatusText(code int) error {
+	return c.String(code, http.StatusText(code))
+}
+
 // NoContent returns the given status code without writing anything to the body
 func (c *Context) NoContent(code int) error {
 	c.Response.WriteHeader(code)
