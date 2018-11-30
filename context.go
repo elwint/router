@@ -20,6 +20,15 @@ func newContext(router *Router, res http.ResponseWriter, req *http.Request, para
 	return &Context{router, req, res, param.ByName, make(map[string]interface{})}
 }
 
+func (c *Context) QueryParam(param string) string {
+	params := c.Request.URL.Query()[param]
+	if params == nil {
+		return ``
+	}
+
+	return params[0]
+}
+
 func (c *Context) Redirect(code int, url string) error {
 	http.Redirect(c.Response, c.Request, url, code)
 	return nil
