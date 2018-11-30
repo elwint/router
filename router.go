@@ -23,7 +23,7 @@ type ErrorHandle func(*Context, interface{})
 // Middleware is a function that runs before your route, it gets the next handler as a parameter
 type Middleware func(Handle) Handle
 
-// Binder reads input to dst, returns true is successful
+// Reader reads input to dst, returns true if successful
 type Reader func(c *Context, dst interface{}) (bool, error)
 
 // Router is the router itself
@@ -159,7 +159,7 @@ func handlePOST(r *Router, f interface{}) Handle {
 
 		if r.Reader != nil {
 			ok, err := r.Reader(c, data.Interface())
-			c.Request.Body.Close()
+			_ = c.Request.Body.Close()
 			if err != nil {
 				return err
 			}

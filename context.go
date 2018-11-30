@@ -20,6 +20,8 @@ func newContext(router *Router, res http.ResponseWriter, req *http.Request, para
 	return &Context{router, req, res, param.ByName, make(map[string]interface{})}
 }
 
+// QueryParam returns the specified parameter from the query string.
+// Returns an empty string if it doesn't exist. Returns the first parameter if multiple instances exist
 func (c *Context) QueryParam(param string) string {
 	params := c.Request.URL.Query()[param]
 	if params == nil {
@@ -29,12 +31,13 @@ func (c *Context) QueryParam(param string) string {
 	return params[0]
 }
 
+// Redirect sends a redirect to the client
 func (c *Context) Redirect(code int, url string) error {
 	http.Redirect(c.Response, c.Request, url, code)
 	return nil
 }
 
-// String returns the given status code and writes the bytes to the body
+// Bytes returns the given status code and writes the bytes to the body
 func (c *Context) Bytes(code int, b []byte) error {
 	c.Response.WriteHeader(code)
 	_, err := c.Response.Write(b)
@@ -67,6 +70,7 @@ func (c *Context) JSON(code int, data interface{}) error {
 	return json.NewEncoder(c.Response).Encode(data) // TODO: Encode to buffer first to prevent partial responses on error
 }
 
+// Render renders a templating using the Renderer set in router
 func (c *Context) Render(code int, template string, data interface{}) error {
 	if c.router.Renderer == nil {
 		panic(`Cannot call render without a renderer set`)
