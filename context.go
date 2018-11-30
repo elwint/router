@@ -1,7 +1,9 @@
 package router
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 
 	"github.com/julienschmidt/httprouter"
@@ -76,9 +78,16 @@ func (c *Context) Render(code int, template string, data interface{}) error {
 		panic(`Cannot call render without a renderer set`)
 	}
 
+	var b bytes.Buffer
+	err := c.router.Renderer.Render(&b, template, data, c)
+	if err != nil {
+		return err
+	}
+
 	c.Response.Header().Set(`Content-Type`, `text/html`)
 	c.Response.WriteHeader(code)
-	return c.router.Renderer.Render(c.Response, template, data, c)
+	_, _ = io.Copy(c.Response, &b)
+	return nil
 }
 
 // Set sets a value in the context. Set is not safe to be used concurrently
