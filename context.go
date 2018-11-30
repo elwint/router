@@ -20,6 +20,11 @@ func newContext(router *Router, res http.ResponseWriter, req *http.Request, para
 	return &Context{router, req, res, param.ByName, make(map[string]interface{})}
 }
 
+func (c *Context) Redirect(code int, url string) error {
+	http.Redirect(c.Response, c.Request, url, code)
+	return nil
+}
+
 // String returns the given status code and writes the bytes to the body
 func (c *Context) Bytes(code int, b []byte) error {
 	c.Response.WriteHeader(code)
