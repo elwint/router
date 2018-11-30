@@ -125,13 +125,6 @@ func (r *Router) getHttpr() *httprouter.Router {
 	return httpr
 }
 
-func handleErr(errHandler ErrorHandle, err interface{}) Handle {
-	return func(c *Context) error {
-		errHandler(c, err)
-		return nil
-	}
-}
-
 func checkInterfaceHandle(f interface{}) {
 	if _, ok := f.(Handle); ok {
 		return
