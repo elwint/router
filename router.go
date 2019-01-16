@@ -35,11 +35,13 @@ type Router struct {
 	NotFoundHandler         Handle
 	MethodNotAllowedHandler Handle
 	ErrorHandler            ErrorHandle
+	PanicHandler            ErrorHandle
 }
 
 // New returns a new Router
 func New() *Router {
-	return &Router{Reader: defaultReader, NotFoundHandler: defaultNotFoundHandler, MethodNotAllowedHandler: defaultMethodNotAllowedHandler, ErrorHandler: defaultErrorHandler}
+	return &Router{Reader: defaultReader, NotFoundHandler: defaultNotFoundHandler, MethodNotAllowedHandler: defaultMethodNotAllowedHandler,
+		ErrorHandler: defaultErrorHandler, PanicHandler: defaultPanicHandler}
 }
 
 // Use adds a global middleware
@@ -126,7 +128,7 @@ func (r *Router) getHttpr() *httprouter.Router {
 
 	httpr.PanicHandler = func(res http.ResponseWriter, req *http.Request, err interface{}) {
 		c := newContext(r, res, req, nil)
-		r.ErrorHandler(c, err)
+		r.PanicHandler(c, err)
 	}
 
 	return httpr
